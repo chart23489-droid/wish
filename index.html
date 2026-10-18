@@ -55,7 +55,10 @@ async function initFirebase(){
     db = fb.getFirestore(app.initializeApp(firebaseConfig));
     const q = fb.query(fb.collection(db, "wishes"), fb.orderBy("createdAt", "desc"), fb.limit(100));
     fb.onSnapshot(q, snap => {
-      pool = SEED.concat(snap.docs.map(d => d.data().text).filter(Boolean));
+      const arr = snap.docs.map(d => d.data().text).filter(Boolean);
+      // 사람들이 남긴 소원이 충분하면 기본 소원은 빼고, 적을 땐 섞어서 보여줌
+      pool = arr.length >= 5 ? arr : arr.concat(SEED);
+      console.log("불러온 소원 수:", arr.length);
     }, err => console.error(err));
   } catch (e) { console.error("Firebase 로드 실패:", e); db = null; }
 }
