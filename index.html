@@ -94,7 +94,7 @@ function show(text){
   stage.appendChild(d); setTimeout(() => d.remove(), 7200);
 }
 function pick(){
-  const c = pool.filter(t => t !== lastShown && !mine.has(t));
+  const c = pool.filter(t => t !== lastShown);
   return c.length ? c[Math.floor(Math.random()*c.length)] : null;
 }
 function loop(){ const t = pick(); if (t) show(t); }
@@ -112,13 +112,14 @@ async function submit(){
   if (BAD.test(v)) return say('따뜻한 말로 남겨주세요 ✦');
   if (Date.now() - lastSent < 5000) return say('잠시 후 다시 남겨주세요 ✦');
   lastSent = Date.now();
-  mine.add(v); inp.value = ''; btn.disabled = true;
+  inp.value = ''; btn.disabled = true;
+  stage.innerHTML = ''; show(v); // 내가 쓴 글을 바로 화면에 띄움
+  if (!db) pool.push(v);
   try {
     if (db) await fb.addDoc(fb.collection(db, "wishes"), { text: v, createdAt: fb.serverTimestamp() });
     say('당신의 소원이 별이 되었어요 ✦');
   } catch (e) { console.error(e); say('저장에 실패했어요. 잠시 후 다시 시도해주세요'); }
   btn.disabled = false;
-  const t = pick(); if (t) setTimeout(() => show(t), 600);
 }
 btn.onclick = submit;
 inp.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
