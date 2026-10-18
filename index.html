@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>밤하늘 소원</title>
+<style>
+:root{color-scheme:dark;--text:#f3f0ff;--sub:#a9a6c9;--glass:rgba(20,18,50,.55);--line:rgba(255,255,255,.2)}
+html,body{height:100%;margin:0;background:#070716;overflow:hidden}
+body{font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;color:var(--text)}
+canvas{position:fixed;inset:0;width:100%;height:100%}
+#stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;pointer-events:none}
+.wish{position:absolute;max-width:min(82vw,520px);text-align:center;font-size:clamp(20px,5vw,30px);line-height:1.5;font-weight:500;text-shadow:0 0 18px rgba(190,180,255,.9),0 0 40px rgba(120,110,255,.6);opacity:0;animation:glow 7s ease-in-out forwards;word-break:keep-all}
+@keyframes glow{0%{opacity:0;transform:translateY(14px) scale(.97)}18%{opacity:1;transform:translateY(0) scale(1)}78%{opacity:1}100%{opacity:0;transform:translateY(-16px) scale(1.02)}}
+#title{position:fixed;top:calc(18px + env(safe-area-inset-top,0px));left:0;right:0;text-align:center;font-size:13px;letter-spacing:.2em;color:var(--sub)}
+#bar{position:fixed;left:0;right:0;bottom:0;padding:14px 16px calc(16px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center}
+#box{display:flex;gap:8px;width:100%;max-width:520px;background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:6px;backdrop-filter:blur(10px)}
+input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--text);font-size:16px;padding:10px 16px;font-family:inherit}
+input::placeholder{color:var(--sub)}
+button{border:0;border-radius:999px;padding:0 20px;font-size:15px;font-weight:600;color:#14123a;background:linear-gradient(135deg,#d9d2ff,#a99bff);cursor:pointer;font-family:inherit}
+button:disabled{opacity:.5}
+#toast{position:fixed;left:0;right:0;bottom:calc(86px + env(safe-area-inset-bottom,0px));text-align:center;font-size:14px;color:var(--sub);opacity:0;transition:opacity .5s}
+#toast.on{opacity:1}
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<div id="title">✦ 밤하늘 소원 ✦</div>
+<div id="stage"></div>
+<div id="toast"></div>
+<div id="bar"><div id="box"><input id="in" maxlength="60" placeholder="소원을 한 줄 남겨보세요" autocomplete="off"><button id="go">남기기</button></div></div>
+
+<script type="module">
+
+// ▼▼ Firebase 콘솔 > 프로젝트 설정 > 내 앱(웹)에서 복사해 붙여넣기 ▼▼
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+// ▲▲ ----------------------------------------------------- ▲▲
+
+// Firebase는 로드에 실패해도 배경/소원 애니메이션이 멈추지 않도록 따로 불러옴
+let db = null, fb = null;
+const FB = "https://www.gstatic.com/firebasejs/10.12.2/";
+async function initFirebase(){
+  if (firebaseConfig.apiKey.startsWith("YOUR_")) return;
+  try {
+    const app = await import(FB + "firebase-app.js");
+    fb = await import(FB + "firebase-firestore.js");
+    db = fb.getFirestore(app.initializeApp(firebaseConfig));
+    const q = fb.query(fb.collection(db, "wishes"), fb.orderBy("createdAt", "desc"), fb.limit(100));
+    fb.onSnapshot(q, snap => {
+      pool = SEED.concat(snap.docs.map(d => d.data().text).filter(Boolean));
+    }, err => console.error(err));
+  } catch (e) { console.error("Firebase 로드 실패:", e); db = null; }
+}
+
+// 밤하늘 배경
+const cv = document.getElementById('sky'), cx = cv.getContext('2d');
+let W, H, stars = [], shoots = [];
+function size(){
+  W = cv.width = innerWidth; H = cv.height = innerHeight;
+  stars = Array.from({length: Math.round(W*H/2800)}, () => ({x:Math.random()*W, y:Math.random()*H, r:Math.random()*1.4+.2, p:Math.random()*6.28, s:Math.random()*.02+.005}));
+}
+addEventListener('resize', size); size();
+function draw(){
+  const g = cx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#05051a'); g.addColorStop(.6,'#15133f'); g.addColorStop(1,'#3a2a63');
+  cx.fillStyle = g; cx.fillRect(0,0,W,H);
+  for (const s of stars){ s.p += s.s; cx.globalAlpha = .4+.6*Math.abs(Math.sin(s.p)); cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(s.x,s.y,s.r,0,6.28); cx.fill(); }
+  if (Math.random() < .004) shoots.push({x:Math.random()*W, y:Math.random()*H*.4, l:0});
+  for (const m of shoots){ m.l++; const x=m.x+m.l*9, y=m.y+m.l*4; cx.globalAlpha=Math.max(0,1-m.l/40); cx.strokeStyle='#fff'; cx.lineWidth=1.5; cx.beginPath(); cx.moveTo(x,y); cx.lineTo(x-60,y-26); cx.stroke(); }
+  shoots = shoots.filter(m => m.l < 40); cx.globalAlpha = 1;
+  requestAnimationFrame(draw);
+}
+draw();
+
+// 소원 표시
+const SEED = ["오늘 하루도 무사히 지나가길","건강하게 오래오래 살기","좋아하는 일로 먹고살 수 있기","가족 모두 아프지 않기","내년엔 꼭 여행 가기","마음이 조금 더 편해지기","보고 싶은 사람을 다시 만나기","내가 나를 더 아껴주기"];
+let pool = SEED.slice(), mine = new Set(), lastShown = '';
+const BAD = /시발|씨발|ㅅㅂ|병신|개새|fuck|shit/i;
+const stage = document.getElementById('stage'), toast = document.getElementById('toast');
+
+function show(text){
+  lastShown = text;
+  const d = document.createElement('div');
+  d.className = 'wish'; d.textContent = text;
+  d.style.marginTop = (Math.random()*30-15) + 'vh';
+  stage.appendChild(d); setTimeout(() => d.remove(), 7200);
+}
+function pick(){
+  const c = pool.filter(t => t !== lastShown && !mine.has(t));
+  return c.length ? c[Math.floor(Math.random()*c.length)] : null;
+}
+function loop(){ const t = pick(); if (t) show(t); }
+loop(); setInterval(loop, 5500);
+function say(msg){ toast.textContent = msg; toast.classList.add('on'); setTimeout(() => toast.classList.remove('on'), 2800); }
+
+initFirebase();
+
+// 소원 남기기
+const inp = document.getElementById('in'), btn = document.getElementById('go');
+let lastSent = 0;
+async function submit(){
+  const v = inp.value.trim();
+  if (!v) return;
+  if (BAD.test(v)) return say('따뜻한 말로 남겨주세요 ✦');
+  if (Date.now() - lastSent < 5000) return say('잠시 후 다시 남겨주세요 ✦');
+  lastSent = Date.now();
+  mine.add(v); inp.value = ''; btn.disabled = true;
+  try {
+    if (db) await fb.addDoc(fb.collection(db, "wishes"), { text: v, createdAt: fb.serverTimestamp() });
+    say('당신의 소원이 별이 되었어요 ✦');
+  } catch (e) { console.error(e); say('저장에 실패했어요. 잠시 후 다시 시도해주세요'); }
+  btn.disabled = false;
+  const t = pick(); if (t) setTimeout(() => show(t), 600);
+}
+btn.onclick = submit;
+inp.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+</script>
+</body>
+</html>
